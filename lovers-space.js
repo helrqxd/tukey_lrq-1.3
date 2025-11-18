@@ -3144,3 +3144,5 @@ function initLoversSpace() {
 		document.getElementById("ls-diary-viewer-modal").classList.remove("visible");
 	});
 }
+
+document.addEventListener('DOMContentLoaded', initLoversSpace);
