@@ -15283,12 +15283,19 @@ body {
 
 /* ▼▼▼ 【独家定制】角色手机消息列表 - 可爱磨砂透明圆角版 v3.0 ▼▼▼ */
 
-/* 1. 给消息列表容器增加内边距和间距，为卡片留出呼吸空间 */
+/* 1. 给消息列表容器增加内边距和间距，并强制开启滚动 */
 #character-chat-list.list-container {
-  padding: 15px 10px;
+  /* --- ★★★ 核心修复：强制开启滚动 ★★★ --- */
   display: flex;
   flex-direction: column;
-  gap: 15px; /* “我”的卡片和“其他人”卡片之间的间距 */
+  flex-grow: 1;       /* 占据剩余空间 */
+  height: 0;          /* 关键：强制让flex子元素的高度受限，从而触发滚动条 */
+  min-height: 0;      /* 兼容性保障 */
+  overflow-y: auto;   /* 内容超出时显示滚动条 */
+  /* ------------------------------------ */
+
+  padding: 15px 10px; /* 保持原来的内边距 */
+  gap: 15px;          /* “我”的卡片和“其他人”卡片之间的间距 */
 }
 
 /* 2. 重置所有列表项的基础样式，移除旧的边框 */
@@ -15307,6 +15314,7 @@ body {
   padding: 15px; /* 增加内边距，让内容更舒服 */
   color: white; /* 文字颜色也变成白色 */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* 给文字加一点阴影保证清晰度 */
+  flex-shrink: 0; /* 防止被压缩 */
 }
 #character-chat-list > .chat-list-item .last-msg {
   color: rgba(255, 255, 255, 0.7); /* 预览消息的文字颜色淡一点 */
@@ -15322,6 +15330,7 @@ body {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   overflow: hidden; /* 关键！让内部的列表项严格遵守容器的圆角 */
   padding: 5px 0; /* 容器内部的上下留白 */
+  flex-shrink: 0; /* 防止被压缩 */
 }
 
 /* 5. 设置容器内部单个消息的样式 */
