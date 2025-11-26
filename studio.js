@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3. 验证
         if (role1Player === 'ai' && role2Player === 'ai') {
-            alert('必须有一个角色由你扮演！'); // 理论上不会发生，但作为安全校验
+            alert('必须有一个角色由你扮演！');
             return;
         }
         if (role1IdentityValue === role2IdentityValue) {
@@ -336,11 +336,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const aiIdentityValue = aiRoleNumber === 1 ? role1IdentityValue : role2IdentityValue;
         const aiChatId = aiIdentityValue !== 'user' ? aiIdentityValue : (userRoleNumber === 1 ? role2IdentityValue : role1IdentityValue);
 
-        // 如果AI扮演的角色选择了“user”身份，这是无效的
-        // if (aiIdentityValue === 'user') {
-        //     alert('AI不能扮演“你”的身份，请为AI扮演的角色选择一个AI身份。');
-        //     return;
-        // }
+        // ★★★ 核心新增：获取名字 ★★★
+        const userNickname = window.state.qzoneSettings.nickname || '我';
+
+        // 辅助函数：根据下拉框的值获取名字
+        const getNameFromIdentityValue = (val) => {
+            if (val === 'user') return userNickname;
+            if (window.state.chats[val]) return window.state.chats[val].name;
+            return '未知角色';
+        };
+
+        const role1Name = getNameFromIdentityValue(role1IdentityValue);
+        const role2Name = getNameFromIdentityValue(role2IdentityValue);
+        // ★★★ 新增结束 ★★★
 
         // 4. 初始化演绎会话
         activeStudioPlay = {
@@ -348,13 +356,21 @@ document.addEventListener('DOMContentLoaded', () => {
             userRole: userRoleNumber,
             aiRole: aiRoleNumber,
             aiChatId: aiChatId,
-            // ★★★ 核心新增：存储AI和用户的临时身份 ★★★
+            // 存储身份
             aiIdentity: aiRoleNumber === 1 ? script.character1_identity : script.character2_identity,
             userPersona: userRoleNumber === 1 ? script.character1_identity : script.character2_identity,
+            // ★★★ 核心新增：存储名字，供小说生成使用 ★★★
+            role1Name: role1Name,
+            role2Name: role2Name,
             history: [],
         };
 
-        // 1. 如果有开场白，先把它作为第一条消息
+        const backgroundMessage = {
+            role: 'system',
+            content: `【故事背景】\n${script.storyBackground}`
+        };
+        activeStudioPlay.history.push(backgroundMessage);
+
         if (script.openingRemark) {
             const openingMessage = {
                 role: 'system',
@@ -363,29 +379,9 @@ document.addEventListener('DOMContentLoaded', () => {
             activeStudioPlay.history.push(openingMessage);
         }
 
-        // 2. 然后将故事背景作为第二条消息
-        const backgroundMessage = {
-            role: 'system',
-            content: `【故事背景】\n${script.storyBackground}`
-        };
-        activeStudioPlay.history.push(backgroundMessage);
-
-        // 将用户扮演的角色任务附加在后面
-        // const userInitialIdentity = userRoleNumber === 1 ? script.character1_identity : script.character2_identity;
-        // initialContent += `\n\n【你的任务】\n${userInitialIdentity}`;
-
-        // const initialMessage = {
-        //     role: 'system',
-        //     content: initialContent
-        // };
-        // activeStudioPlay.history.push(initialMessage);
-
         roleSelectionModal.classList.remove('visible');
         renderStudioPlayScreen();
         showScreen('studio-play-screen');
-
-        // 如果是AI先行动，触发AI
-        // 可以在这里添加逻辑，例如判断剧本设定谁先开始
     }
 
     /**
@@ -504,15 +500,20 @@ document.addEventListener('DOMContentLoaded', () => {
      * 触发AI在演绎中的回应
      */
     async function triggerAiStudioResponse() {
-        const { script, aiRole, aiChatId, history, aiIdentity, userPersona } = activeStudioPlay;
+        // ★★★ 核心修改：解构出名字变量 ★★★
+        const { script, aiRole, aiChatId, history, aiIdentity, userPersona, role1Name, role2Name } = activeStudioPlay;
         const chat = window.state.chats[aiChatId];
+
+        // 如果AI扮演角色1，它就是role1Name，对手是role2Name；反之亦然。
+        const aiActingName = aiRole === 1 ? role1Name : role2Name;
+        const userActingName = aiRole === 1 ? role2Name : role1Name;
 
         // 1. 显示“角色正在行动”的提示
         const actionTypingIndicator = createTypingIndicator(`${chat.name} 正在行动...`);
         playMessagesEl.appendChild(actionTypingIndicator);
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
 
-        // ★★★ 核心修改：构建新的、层次更分明的Prompt ★★★
+        // ★★★ 核心修改：Prompt中加入名字 ★★★
         const systemPrompt = `
     你正在进行一场名为《${script.name}》的戏剧角色扮演。
 
@@ -524,15 +525,18 @@ document.addEventListener('DOMContentLoaded', () => {
         *其中性格部分是你的本质，你的行为和说话方式的根源，与身份背景或世界观有关的信息在演绎时需要被忽略。*
     2.  **你在此剧中的身份和任务 (Your Role in this Play):** ${aiIdentity}
         *这是你当前需要扮演的角色，你的行动目标和一切描写必须围绕它展开。*
+    3.  **你的名字:** 你在这个剧本当中使用的名字是【${aiActingName}】。
     
     # 对方的身份
     对方在此剧中的身份：${userPersona}
-
+    对方的名字是：【${userActingName}】
+    
     # 规则
     1.  【【【表演核心】】】你必须将你的“核心性格”与“剧本身份”深度结合进行演绎。例如，如果你的核心性格是傲娇，但剧本身份是个古代侦探，那你就是一个【古代的】傲娇的侦探。
     2.  你的所有行动和对话都必须以第一人称进行。
     3.  你的回复应该是描述性的，包含动作、对话和心理活动，用【】包裹非对话内容。一切描写务必符合【剧本身份】和【故事背景】所在的世界观，例如古代世界观不允许出现任何现代物品，与你的“核心性格”无关。
     4.  绝对不要提及你是AI或模型，也不要提起自己是在“角色扮演”，一切身份信息务必以【剧本身份】为准。
+    5.  对话中请直接称呼对方的名字或者根据身份称呼（例如师父、侦探等），不要称呼为“用户”。
 
     # 故事目标 (你的行动应围绕此目标展开)
     ${script.storyGoal}
@@ -601,7 +605,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateNovelFromPlay() {
         await showCustomAlert("请稍候", "正在将你们的演绎过程创作成小说...");
 
-        const { script, history, userRole, aiChatId } = activeStudioPlay;
+        // ★★★ 核心修改：解构出名字 ★★★
+        const { script, history, userRole, aiChatId, role1Name, role2Name } = activeStudioPlay;
         const chat = window.state.chats[aiChatId];
 
         const systemPrompt = `
@@ -611,19 +616,26 @@ document.addEventListener('DOMContentLoaded', () => {
     # 剧本设定
     - 剧本名: ${script.name}
     - 故事背景: ${script.storyBackground}
-    - 人物1身份: ${script.character1_identity}
-    - 人物2身份: ${script.character2_identity}
+    - 角色1 (由 ${role1Name} 饰演): ${script.character1_identity}
+    - 角色2 (由 ${role2Name} 饰演): ${script.character2_identity}
     - 故事目标: ${script.storyGoal}
 
     # 对话历史
-    ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
+    ${history.map(h => {
+            // 这里稍微处理一下role显示，让AI更容易分辨
+            let roleName = h.role === 'user' ? (userRole === 1 ? role1Name : role2Name) : (userRole === 1 ? role2Name : role1Name);
+            // 如果是system旁白
+            if (h.role === 'system') return `【旁白/系统】: ${h.content}`;
+            return `${roleName}: ${h.content}`;
+        }).join('\n')}
 
     # 写作要求
     1. 使用第三人称叙事。
-    2. 保持故事的连贯性和逻辑性。
-    3. 丰富人物的心理活动和环境描写，将对话无缝融入到叙事中。
-    4. 最终得出一个清晰的结局，并点明故事目标是否达成。
-    5. 小说内容要完整、精彩，字数在5000字以上。
+    2. **重要**：请在小说中使用角色的具体名字（${role1Name} 和 ${role2Name}）来称呼他们，而不是使用“人物1”或“用户”。
+    3. 保持故事的连贯性和逻辑性。
+    4. 丰富人物的心理活动和环境描写，将对话无缝融入到叙事中。
+    5. 最终得出一个清晰的结局，并点明故事目标是否达成。
+    6. 小说内容要完整、精彩，字数在1000字以上。
     `;
 
         try {
@@ -646,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             const novelText = isGemini ? result.candidates[0].content.parts[0].text : result.choices[0].message.content;
 
-            // ★★★ 核心新增：在这里保存故事记录 ★★★
+            // 保存故事记录
             const myNickname = window.state.qzoneSettings.nickname || '我';
             const historyRecord = {
                 scriptName: script.name,
@@ -654,13 +666,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 novelContent: novelText,
                 timestamp: Date.now(),
                 participants: {
-                    role1: userRole === 1 ? myNickname : chat.name,
-                    role2: userRole === 2 ? myNickname : chat.name
+                    role1: role1Name, // 使用真实名字
+                    role2: role2Name  // 使用真实名字
                 }
             };
             await db.studioHistory.add(historyRecord);
             console.log('故事记录已成功保存到数据库！');
-            // ★★★ 新增结束 ★★★
 
             document.getElementById('studio-novel-content').textContent = novelText;
             novelModal.classList.add('visible');
