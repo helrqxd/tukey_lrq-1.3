@@ -19677,7 +19677,6 @@
 						.filter((msg) => msg.type === "summary")
 						.map((s) => s.content)
 						.join("\n");
-					combinedText += summaryContext;
 
 					// add by lrq 251029 添加聊天间隔时间
 					const lastMessage = chat.history.slice(-1)[0];
@@ -23119,7 +23118,6 @@
 							.filter((msg) => msg.type === "summary")
 							.map((s) => s.content)
 							.join("\n");
-						combinedText += summaryContext;
 
 						// ▼▼▼ 从这里开始完整替换 ▼▼▼
 
